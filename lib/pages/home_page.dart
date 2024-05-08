@@ -1,5 +1,8 @@
+import 'package:app_one_todo_with_hive/database/database.dart';
 import 'package:app_one_todo_with_hive/util/dialog_box.dart';
+import 'package:app_one_todo_with_hive/util/todo_tile.dart';
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -9,8 +12,27 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  // reference the box
+  final _mybox = Hive.box("mybox");
+
+  // initialise the database
+  ToDoDatabase database = ToDoDatabase();
+
   // declare the text controller her
-  TextEditingController controller = TextEditingController();
+  TextEditingController _controller = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+
+    // if this is the 1st time ever opening the app, then create default data
+    if (_mybox.get("TOTOLIST") == null) {
+      database.createInitiateData();
+    } else {
+      // there already exist data
+      database.loadData();
+    }
+  }
 
   // create a new to do task
   void createNewTodoTask() {
@@ -18,8 +40,35 @@ class _HomePageState extends State<HomePage> {
         context: context,
         builder: (context) {
           return MyDiaglogBox(
-              controller: controller, onSave: () {}, onCancel: () {});
+            controller: _controller,
+            onSave: saveNewTask,
+            onCancel: () => Navigator.of(context).pop(),
+          );
         });
+  }
+
+  void saveNewTask() {
+    setState(() {
+      database.toDoList.add([_controller.text, false]);
+      _controller.clear();
+    });
+    Navigator.of(context).pop();
+    database.updateDatabase();
+  }
+
+  // checkbox was tapped
+  void checkBoxChange(bool? value, int index) {
+    setState(() {
+      database.toDoList[index][1] = !database.toDoList[index][1];
+    });
+    database.updateDatabase();
+  }
+
+  void deleteTask(int index) {
+    setState(() {
+      database.toDoList.removeAt(index);
+    });
+    database.updateDatabase();
   }
 
   @override
@@ -34,6 +83,16 @@ class _HomePageState extends State<HomePage> {
         ),
         elevation: 0,
       ),
+      body: ListView.builder(
+          itemCount: database.toDoList.length,
+          itemBuilder: (context, index) {
+            return TodoTile(
+              taskName: database.toDoList[index][0],
+              taskComplete: database.toDoList[index][1],
+              onChange: (value) => checkBoxChange(value, index),
+              deleteFunction: (context) => deleteTask(index),
+            );
+          }),
       floatingActionButton: FloatingActionButton(
         onPressed: createNewTodoTask,
         child: Icon(
